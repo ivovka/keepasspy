@@ -124,11 +124,7 @@ class PassDB:
                 AES.MODE_CBC,
                 self.header.fields['enc_iv'].value)
 
-        data = stream.read(AES.block_size)
-        # EOF?
-        if data == '': break
-        yield cipher.decrypt(data)
-        #return(cipher.decrypt(stream.read()))
+        return(cipher.decrypt(stream.read()))
 
     def _twofish_decrypt(self, stream):
         pass
