@@ -1,7 +1,7 @@
 import io
 import struct
 import sys
-import passdb_consts
+from keepasspy import consts
 
 class PassDBHdrField:
 
@@ -60,14 +60,14 @@ class VersionField(PassDBHdrField):
 
 class CipherField(PassDBHdrField):
     def raw_to_value(self):
-        return passdb_consts.Cypher(self._raw_value)
+        return consts.Cypher(self._raw_value)
     def value_to_raw(self):
         return self._value.value
 
 
 class CompressionField(PassDBHdrField):
     def raw_to_value(self):
-        return passdb_consts.CompressionAlgo(struct.unpack('<I', self._raw_value)[0])
+        return consts.CompressionAlgo(struct.unpack('<I', self._raw_value)[0])
 
     def value_to_raw(self):
         return(struct.pack('<I', self._value.value))
@@ -101,7 +101,7 @@ class StreamStartBytesField(PassDBHdrField):
 
 class CrsAlgoField(PassDBHdrField):
     def raw_to_value(self):
-        return passdb_consts.CrsAlgo(struct.unpack('<I', self._raw_value)[0])
+        return consts.CrsAlgo(struct.unpack('<I', self._raw_value)[0])
 
     def value_to_raw(self):
         return(struct.pack('<I', self._value.value))

@@ -2,8 +2,8 @@ import io
 from enum import Enum
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
-from passdb_header import PassDBHeader, PassDBSignature
-import passdb_consts
+from keepasspy.header import PassDBHeader, PassDBSignature
+from keepasspy import consts
 import codecs
 import struct
 import zlib
@@ -64,12 +64,12 @@ class PassDB:
     Чтение и расшифровка данных
     """
     def _decrypt(self, stream):
-        if self.header.fields['cipher'].value == passdb_consts.Cypher.aes:
+        if self.header.fields['cipher'].value == consts.Cypher.aes:
             data = self._aes_decrypt(stream)
             # в последнем байте хранится количество байт, которые необходимо
             # отрезать?
             data = data[:len(data) - bytearray(data)[-1]]
-        elif self.header.fields['cipher'].value == passdb_consts.Cypher.twofish:
+        elif self.header.fields['cipher'].value == consts.Cypher.twofish:
             self._twofish_decrypt(stream)
             print('twofish cypher')
         else:
@@ -95,7 +95,7 @@ class PassDB:
                 else:
                     break
                 self.payload.seek(0)
-                if self.header.fields['compression'].value == passdb_consts.CompressionAlgo.gzip:
+                if self.header.fields['compression'].value == consts.CompressionAlgo.gzip:
                     decmp = zlib.decompressobj(16 + zlib.MAX_WBITS)
                     self.payload = io.BytesIO(decmp.decompress(self.payload.read()))
                     self.payload.seek(0)
