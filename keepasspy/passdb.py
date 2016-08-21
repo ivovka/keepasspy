@@ -4,6 +4,7 @@ from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from keepasspy.header import PassDBHeader, PassDBSignature
 from keepasspy import consts
+from keepasspy.credentials import PassDBCredentials
 import codecs
 import struct
 import zlib
@@ -14,28 +15,6 @@ import zlib
     https://github.com/keeweb/kdbxweb
     https://github.com/NeoXiD/keepass.io
 """
-class PassDBCredentials:
-    def __init__(self, **credentials):
-        self.set_credentials(**credentials)
-
-    def set_credentials(self, **credentials):
-        self.hash = None
-        keys = []
-        if 'password' in credentials:
-            # Получаю хэш пароля
-            keys.append(SHA256.new(credentials['password'].encode('utf-8')).digest())
-        if 'keyfile' in credentials:
-            # Получаю хэш файла
-            # TODO: реализовать.
-            # Причем вариантов может быть несколько:
-            # 1. xml-файл
-            # 2. текстовый файл, непосредственно в котором находится хэш
-            # 3. просто какой-то файл, хэш которого необходимо получить
-            pass
-        # Шаг 2: получаю комбинированный хэш пароля+файла путем взятия хэша
-        # от сцепленного хэша пароля и файла
-        self.hash = SHA256.new(b''.join(keys)).digest()
-
 class PassDB:
     def __init__(self, stream, **credentials):
         self.signature = PassDBSignature()
