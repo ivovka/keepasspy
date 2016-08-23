@@ -15,12 +15,43 @@ import zlib
     https://github.com/keeweb/kdbxweb
     https://github.com/NeoXiD/keepass.io
 """
+class PassDBPayload(io.BytesIO):
+    def __init__(self, initial_bytes=None):
+        super().__init__()
+        input_stream = None
+        if initial_bytes is not None:
+            input_stream = io.BytesIO(initial_bytes)
+        if input_stream is not None:
+            self.read_stream(input_stream)
+
+    def read_stream(self, stream):
+        if not isinstance(stream, io.IOBase):
+            raise TypeError('The stream does not support IOBase interface.')
+        while True:
+            block_data = self._read_block(stream)
+            if block_data is None:
+                break
+            else:
+                self.write(block_data)
+        self.seek(0)
+
+    def _read_block(self, in_stream):
+        num_block,block_hash,block_length = struct.unpack('<I32sI',in_stream.read(40))
+        if block_length > 0:
+            block_payload = in_stream.read(block_length)
+            if SHA256.new(block_payload).digest() == block_hash:
+                return block_payload
+            else:
+                raise ValueError('Invalid block hash')
+        else:
+            return None
+
 class PassDB:
     def __init__(self, stream, **credentials):
         self.signature = PassDBSignature()
         self.header = PassDBHeader()
         self.credentials = PassDBCredentials(**credentials)
-        self.payload = io.BytesIO()
+        self.payload = None
         if stream is not None:
             self.read(stream)
 
@@ -62,22 +93,11 @@ class PassDB:
             data[:start_bytes_length]:
             # ключ правильный. данные начинаются с start_bytes_length
             data = data[start_bytes_length:]
-            in_stream = io.BytesIO(data)
-            while True:
-                num_block,block_hash,block_length = struct.unpack('<I32sI',in_stream.read(40))
-                if block_length > 0:
-                    block_payload = in_stream.read(block_length)
-                    if SHA256.new(block_payload).digest() == block_hash:
-                        self.payload.write(block_payload)
-                    else:
-                        raise ValueError('Invalid block hash')
-                else:
-                    break
+            self.payload = PassDBPayload(data)
+            if self.header.fields['compression'].value == consts.CompressionAlgo.gzip:
+                decmp = zlib.decompressobj(16 + zlib.MAX_WBITS)
+                self.payload = io.BytesIO(decmp.decompress(self.payload.read()))
                 self.payload.seek(0)
-                if self.header.fields['compression'].value == consts.CompressionAlgo.gzip:
-                    decmp = zlib.decompressobj(16 + zlib.MAX_WBITS)
-                    self.payload = io.BytesIO(decmp.decompress(self.payload.read()))
-                    self.payload.seek(0)
                 payload_file = open('payload.out', 'wb')
                 payload_file.write(self.payload.read())
         else:
@@ -103,7 +123,19 @@ class PassDB:
                 AES.MODE_CBC,
                 self.header.fields['enc_iv'].value)
 
-        return(cipher.decrypt(stream.read()))
+        input_data = stream.read()
+        data = cipher.decrypt(input_data)
+        # DEBUG:
+        with open('mk.out', 'wb') as aes_mk_file:
+            aes_mk_file.write(self.master_key)
+        with open('iv.out', 'wb') as aes_iv_file:
+            aes_iv_file.write(self.header.fields['enc_iv'].value)
+        with open('encrypted.out', 'wb') as encrypted_file:
+            encrypted_file.write(input_data)
+        with open('decrypted.out', 'wb') as decrypted_file:
+            decrypted_file.write(data)
+        # return(cipher.decrypt(stream.read()))
+        return(data)
 
     def _twofish_decrypt(self, stream):
         pass
@@ -124,7 +156,6 @@ class PassDB:
         transformed_key = SHA256.new(encrypted_msg).digest()
         self.master_key = SHA256.new(self.header.fields['master_seed'].value +
                 transformed_key).digest()
-        print(self.master_key)
 
     def clear_master_key(self):
         self.master_key = None
