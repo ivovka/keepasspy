@@ -34,7 +34,7 @@ def iterable_to_stream(iterable, buffer_size=io.DEFAULT_BUFFER_SIZE):
 #        f_out.write(b)
 
 # эта сопрограмма читает и декодирует файл
-def co_producer(key, iv, fltr)
+def co_producer(key, iv, fltr):
     cipher = AES.new(key, AES.MODE_CBC, iv)
     with open('encrypted.out', 'rb') as f:
         next(fltr)
@@ -43,36 +43,46 @@ def co_producer(key, iv, fltr)
             dec_block = cipher.decrypt(block)
             fltr.send(dec_block)
             block = f.read(len(iv))
+    fltr.close()
 
 # эта сопрограмма получает декодированный поток
 # и передает его дальше, откусив от последнего блока
 # сколько то байт
-def co_filter1():
+def co_filter1(receiver):
     """
-    нужно взять буфер размером 512 и заполнять его
-    когда заполнится целиком, передать первые 256 байт из него
-    и сдвинуть на 256 влево.
-    Если входной поток кончился, нужно откусить с конца
-    столько байт, сколько записано в последнем байте
-
+    Получаем очередную порцию и записываем в буфер. Если после получения в
+    буфере более, чем 256 байт, отдаем первую часть буфера, оставляя 256 байт.
+    Сдвигаем буфер влево и так далее. До тех пор, пока будет нечего получать.
+    Когда больше ничего не дают, откусываем с конца столько, сколько нужно.
     """
-    leftover = None
     buf = bytearray()
+    next(receiver)
     while True:
-        b = yield
-        buflen = len(buf)
-        # дописываю в буфер до 512
-        buf.extend(b[:(512-buflen)])
-        # остаток - в leftover
-        leftover = b[(512-buflen):]
-        if len(buf) == 512:
-            # отдаю первые 256 байт из буфера
-            yield buf[:256]
-            # и двигаю буфер влево
-            buf[:256] = buf[256:]
-            del(buf[256:])
-        b_len = len(b)
+        try:
+            b = yield
+            buf.extend(b)
+            buflen = len(buf)
+            print("Got "+str(buflen)+" bytes from producer")
+            while buflen > 256:
+                head, buf = buf[:(buflen-256)], buf[(buflen-256):]
+                buflen = len(buf)
+                print("Sending "+str(len(head))+" bytes to consumer. Left "+str(len(buf))+" bytes.")
+                receiver.send(head)
+        except GeneratorExit:
+            print("There is "+str(len(buf))+" bytes in the buffer")
+            print("Need to cut off "+str(buf[-1])+" bytes")
+            receiver.send(buf[:(len(buf)-buf[-1])])
+            receiver.close()
+            break
 
+
+def test_receiver(f):
+    while True:
+        try:
+            b = yield
+            f.write(b)
+        except GeneratorExit:
+            break
 
 if __name__ == '__main__':
     with open('mk.out', 'rb') as f:
@@ -86,6 +96,8 @@ if __name__ == '__main__':
             print(len(data))
             f_out.write(data)
             data = b.read(256)
-    fltr_co = co_filter1()
-    prod_co = co_producer(master_key, aes_iv, fltr_co)
+    with open('new_decrypted1.out', 'wb') as f:
+        receiver_co = test_receiver(f)
+        fltr_co = co_filter1(receiver_co)
+        prod_co = co_producer(master_key, aes_iv, fltr_co)
 

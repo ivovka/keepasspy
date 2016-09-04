@@ -58,6 +58,9 @@ class PassDB:
         # байт БД. Если совпадает с тем, что получилось в результате
         # расшифровки, значит ключ правильный. Иначе - нет.
         start_bytes_length = len(self.header.fields['stream_start_bytes'].value)
+        with open('ssb.out', 'wb') as f:
+            f.write(self.header.fields['stream_start_bytes'].value)
+        print("Start bytes length = "+str(start_bytes_length))
         if self.header.fields['stream_start_bytes'].value == \
             data[:start_bytes_length]:
             # ключ правильный. данные начинаются с start_bytes_length
@@ -103,7 +106,19 @@ class PassDB:
                 AES.MODE_CBC,
                 self.header.fields['enc_iv'].value)
 
-        return(cipher.decrypt(stream.read()))
+        ptr = stream.tell()
+        with open('encrypted.out', 'wb') as f:
+            f.write(stream.read())
+        stream.seek(ptr)
+        with open('iv.out', 'wb') as f:
+            f.write(self.header.fields['enc_iv'].value)
+        with open('mk.out', 'wb') as f:
+            f.write(self.master_key)
+        d = cipher.decrypt(stream.read())
+        with open('decrypted.out', 'wb') as f:
+            f.write(d)
+        # return(cipher.decrypt(stream.read()))
+        return(d)
 
     def _twofish_decrypt(self, stream):
         pass
@@ -128,7 +143,4 @@ class PassDB:
 
     def clear_master_key(self):
         self.master_key = None
-
-if __name__ == '__main__':
-    pass_db = PassDB(open('passwords.kdbx', 'rb'), password='w31Ca*tR2JMI5D')
 
